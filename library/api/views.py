@@ -81,26 +81,47 @@ class memberList(APIView):
 
 class bookreservation(APIView):
 	def get(self,request, pk, format=None):
-		reservation = reservationStatus.objects.get(pk=id)
-		serializer = reservationStatusSerializers(reservation, many=True)
+		reservation_list = reservationStatus.objects.all()
+		result = []
+		for reservation in reservation_list:
+			if reservation.book_id == pk:
+				result.append(reservation)
+
+		serializer = reservationStatusSerializers(result, many=True)
 		return Response(serializer.data)
 
 	def post(self,request, pk, format=None):
 		reservation_list = reservationStatus.objects.all()
 		result = {}
+		book_res = {}
 
-		book = book.objects.get(pk=id)
+		book_list = book.objects.all()
+		for books in book_list:
+			if books.id == pk:
+				book_res = books
+				break
 
-		if book['available_copies'] > 0:
+		modified_book = {}
+
+		if book_res.available_copies > 0:
 			result['status'] = 'reservation'
-			result['book_id'] = book['id']
-			result['member_id'] = request['member_id']
+			result['book_id'] = book_res.id
+			result['member_id'] = request.data['member_id']
 			result['days_up'] = 1
+			available_copies = book_res.available_copies - 1
+			modified_book['available_copies'] = available_copies
+			modified_book['id'] = book_res.id
+			modified_book['author'] = book_res.author
+			modified_book['copies'] = book_res.copies
+			print(modified_book['available_copies'])
+			serializer1 = bookSerializers(book_res, data=modified_book)
+			if serializer1.is_valid():
+				serializer1.save()
 
-		elif book['available_copies'] <= 0:
+		elif book_res.available_copies <= 0:
 			result['status'] = 'requested'
-			result['book_id'] = book['id']
-			result['member_id'] = request['member_id']
+			result['book_id'] = book_res.id
+			result['member_id'] = request.data['member_id']
 			result['days_up'] = 0
 
 		serializer = reservationStatusSerializers(data=result)
@@ -112,8 +133,31 @@ class bookreservation(APIView):
 
 
 	def put(self,request, pk, format=None):
-		reservation = reservationStatus.objects.get(pk=id)
-		serializer = reservationStatusSerializers(reservation, data=request.data)
+		reservation_list = reservationStatus.objects.all()
+		book_list = book.objects.all()
+
+		modified_book = {}
+		actual_book = {}
+
+		result = {}
+		for reservation in reservation_list:
+			if reservation.book_id == pk and reservation.member_id == request.data['member_id']:
+				result = reservation
+				break
+
+		for i in book_list:
+			if i.id == pk:
+				modified_book = i
+				actual_book = i
+
+
+		modified_book.available_copies = actual_book.available_copies + 1
+
+		serializer1 = bookSerializers(actual_book, data=modified_book)
+		if serializer1.is_valid():
+			serializer1.save()
+
+		serializer = reservationStatusSerializers(result, data=request.data)
 		if serializer.is_valid():
 			serializer.save()
 
